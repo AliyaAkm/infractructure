@@ -41,8 +41,7 @@ jobs:
               "${{ secrets.SERVER_DEPLOY_PATH }}/storage-service" \
               "${{ secrets.SERVER_DEPLOY_PATH }}/payment-service" \
               "${{ secrets.SERVER_DEPLOY_PATH }}/notification-service" \
-              "${{ secrets.SERVER_DEPLOY_PATH }}/AI-service" \
-              "${{ secrets.SERVER_DEPLOY_PATH }}/Code-Runner-Service"
+              "${{ secrets.SERVER_DEPLOY_PATH }}/AI-service"
 
       - name: Copy production compose to server
         uses: appleboy/scp-action@v1
