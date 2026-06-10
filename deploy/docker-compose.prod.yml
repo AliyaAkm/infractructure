@@ -191,8 +191,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # For the first empty database only, uncomment and copy this file to the server:
-      # - ./dumps/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./dumps/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     restart: unless-stopped
     networks:
       - zerde-network
