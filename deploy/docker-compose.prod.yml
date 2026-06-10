@@ -1,0 +1,286 @@
+services:
+  gateway:
+    image: ${DOCKERHUB_USERNAME}/zerde-gateway:latest
+    container_name: gateway
+    env_file:
+      - ./gateway/.env
+    environment:
+      PORT: ${GATEWAY_PORT}
+      AUTH_SERVICE_URL: http://auth-service:${AUTH_SERVICE_PORT}
+      CURRICULUM_SERVICE_URL: http://curriculum-service:${CURRICULUM_SERVICE_PORT}
+      PAYMENT_SERVICE_URL: http://payment-service:${PAYMENT_SERVICE_PORT}
+      NOTIFICATION_SERVICE_URL: http://notification-service:${NOTIFICATION_SERVICE_PORT}
+      AI_SERVICE_URL: http://ai-service:8080
+      CODE_RUNNER_SERVICE_URL: http://code-runner-service:${CODE_RUNNER_SERVICE_PORT}
+    ports:
+      - "${GATEWAY_PORT}:${GATEWAY_PORT}"
+    depends_on:
+      - auth-service
+      - curriculum-service
+      - notification-service
+      - ai-service
+      - code-runner-service
+    restart: unless-stopped
+    networks:
+      - zerde-network
+
+  auth-service:
+    image: ${DOCKERHUB_USERNAME}/zerde-auth-service:latest
+    container_name: auth-service
+    env_file:
+      - ./auth-service/.env
+    environment:
+      PORT: ${AUTH_SERVICE_PORT}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      STORAGE_SERVICE_URL: http://storage-service:${STORAGE_SERVICE_PORT}
+      STORAGE_SERVICE_TIMEOUT: 30m
+      NOTIFICATION_SERVICE_URL: http://notification-service:${NOTIFICATION_SERVICE_PORT}
+      NOTIFICATION_SERVICE_TIMEOUT: 5s
+      NOTIFICATION_SERVICE_INTERNAL_API_KEY: ${NOTIFICATION_INTERNAL_API_KEY}
+    depends_on:
+      - postgres
+      - storage-service
+      - notification-service
+    restart: unless-stopped
+    networks:
+      - zerde-network
+
+  curriculum-service:
+    image: ${DOCKERHUB_USERNAME}/zerde-curriculum-service:latest
+    container_name: curriculum-service
+    env_file:
+      - ./curriculum-service/.env
+    environment:
+      PORT: ${CURRICULUM_SERVICE_PORT}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      STORAGE_SERVICE_URL: http://storage-service:${STORAGE_SERVICE_PORT}
+      STORAGE_SERVICE_TIMEOUT: 30m
+      NOTIFICATION_SERVICE_URL: http://notification-service:${NOTIFICATION_SERVICE_PORT}
+      NOTIFICATION_SERVICE_TIMEOUT: 5s
+      NOTIFICATION_SERVICE_INTERNAL_API_KEY: ${NOTIFICATION_INTERNAL_API_KEY}
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: 0
+      REDIS_KEY_PREFIX: zerde:curriculum
+      REDIS_DICTIONARY_TTL: 24h
+      CODE_RUNNER_SERVICE_URL: http://code-runner-service:8091
+      CODE_RUNNER_SERVICE_TIMEOUT: 30s
+      AI_SERVICE_URL: http://ai-service:8080
+      AI_SERVICE_TIMEOUT: 5s
+    depends_on:
+      - postgres
+      - notification-service
+      - storage-service
+      - redis
+      - ai-service
+      - code-runner-service
+    restart: unless-stopped
+    networks:
+      - zerde-network
+
+  storage-service:
+    image: ${DOCKERHUB_USERNAME}/zerde-storage-service:latest
+    container_name: storage-service
+    env_file:
+      - ./storage-service/.env
+    environment:
+      PORT: ${STORAGE_SERVICE_PORT}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET_LESSON_VIDEOS}
+      MINIO_REGION: ${MINIO_REGION}
+      MINIO_USE_SSL: ${MINIO_USE_SSL}
+      MINIO_PRESIGN_TTL: ${MINIO_PRESIGN_TTL}
+      HTTP_MAX_UPLOAD_SIZE: 1073741824
+    depends_on:
+      - minio
+    restart: unless-stopped
+    networks:
+      - zerde-network
+
+  payment-service:
+    image: ${DOCKERHUB_USERNAME}/zerde-payment-service:latest
+    container_name: payment-service
+    env_file:
+      - ./payment-service/.env
+    environment:
+      PORT: ${PAYMENT_SERVICE_PORT}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      NOTIFICATION_SERVICE_URL: http://notification-service:${NOTIFICATION_SERVICE_PORT}
+      NOTIFICATION_SERVICE_TIMEOUT: 5s
+      NOTIFICATION_SERVICE_INTERNAL_API_KEY: ${NOTIFICATION_INTERNAL_API_KEY}
+    depends_on:
+      - postgres
+      - notification-service
+    restart: unless-stopped
+    networks:
+      - zerde-network
+
+  notification-service:
+    image: ${DOCKERHUB_USERNAME}/zerde-notification-service:latest
+    container_name: notification-service
+    env_file:
+      - ./notification-service/.env
+    environment:
+      PORT: ${NOTIFICATION_SERVICE_PORT}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      INTERNAL_API_KEY: ${NOTIFICATION_INTERNAL_API_KEY}
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - zerde-network
+
+  ai-service:
+    image: ${DOCKERHUB_USERNAME}/zerde-ai-service:latest
+    container_name: ai-service
+    env_file:
+      - ./AI-service/.env
+    environment:
+      HTTP_ADDR: :8080
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      KAFKA_ENABLED: ${AI_KAFKA_ENABLED}
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_TOPIC: ${AI_KAFKA_TOPIC}
+    depends_on:
+      postgres:
+        condition: service_started
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - zerde-network
+
+  code-runner-service:
+    image: ${DOCKERHUB_USERNAME}/zerde-code-runner-service:latest
+    container_name: code-runner-service
+    env_file:
+      - ./Code-Runner-Service/.env
+    environment:
+      PORT: ${CODE_RUNNER_SERVICE_PORT}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    networks:
+      - zerde-network
+
+  postgres:
+    image: postgres:16
+    container_name: zerde-postgres
+    env_file:
+      - ./.env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # For the first empty database only, uncomment and copy this file to the server:
+      # - ./dumps/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+    networks:
+      - zerde-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: zerde-minio
+    env_file:
+      - ./.env
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_API_PORT}:9000"
+      # Open console only if you really need it, preferably behind VPN/reverse proxy.
+      # - "${MINIO_CONSOLE_PORT}:9001"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+    networks:
+      - zerde-network
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: zerde-minio-init
+    env_file:
+      - ./.env
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do sleep 2; done;
+      mc mb --ignore-existing local/${MINIO_BUCKET_LESSON_VIDEOS};
+      mc anonymous set none local/${MINIO_BUCKET_LESSON_VIDEOS};
+      "
+    networks:
+      - zerde-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: zerde-redis
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - zerde-network
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v25.1.2
+    container_name: zerde-redpanda
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - "512M"
+      - --reserve-memory
+      - "0M"
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://${REDPANDA_EXTERNAL_HOST:-localhost}:19092
+      - --pandaproxy-addr
+      - internal://0.0.0.0:8082
+      - --advertise-pandaproxy-addr
+      - internal://redpanda:8082
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster info > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+    restart: unless-stopped
+    networks:
+      - zerde-network
+
+volumes:
+  postgres_data:
+  minio_data:
+  redis_data:
+
+networks:
+  zerde-network:
+    driver: bridge
