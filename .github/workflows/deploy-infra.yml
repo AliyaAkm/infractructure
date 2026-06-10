@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   deploy-infra:
-    name: Copy compose, create env files, start infrastructure
+    name: Copy compose and start infrastructure
     runs-on: ubuntu-latest
 
     steps:
@@ -31,7 +31,18 @@ jobs:
           port: ${{ secrets.SERVER_SSH_PORT }}
           script: |
             set -e
+
             mkdir -p "${{ secrets.SERVER_DEPLOY_PATH }}"
+
+            mkdir -p \
+              "${{ secrets.SERVER_DEPLOY_PATH }}/gateway" \
+              "${{ secrets.SERVER_DEPLOY_PATH }}/auth-service" \
+              "${{ secrets.SERVER_DEPLOY_PATH }}/curriculum-service" \
+              "${{ secrets.SERVER_DEPLOY_PATH }}/storage-service" \
+              "${{ secrets.SERVER_DEPLOY_PATH }}/payment-service" \
+              "${{ secrets.SERVER_DEPLOY_PATH }}/notification-service" \
+              "${{ secrets.SERVER_DEPLOY_PATH }}/AI-service" \
+              "${{ secrets.SERVER_DEPLOY_PATH }}/Code-Runner-Service"
 
       - name: Copy production compose to server
         uses: appleboy/scp-action@v1
@@ -45,7 +56,7 @@ jobs:
           strip_components: 1
           overwrite: true
 
-      - name: Create env files and start shared infrastructure
+      - name: Start shared infrastructure
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -56,41 +67,16 @@ jobs:
             set -e
             cd "${{ secrets.SERVER_DEPLOY_PATH }}"
 
-            mkdir -p gateway auth-service curriculum-service storage-service payment-service notification-service AI-service Code-Runner-Service
+            if [ ! -f .env ]; then
+              echo ".env not found in ${{ secrets.SERVER_DEPLOY_PATH }}"
+              exit 1
+            fi
 
-            cat > .env <<'ENVEOF'
-            ${{ secrets.ROOT_ENV }}
-            ENVEOF
-            cat > gateway/.env <<'ENVEOF'
-            ${{ secrets.GATEWAY_ENV }}
-            ENVEOF
-            cat > auth-service/.env <<'ENVEOF'
-            ${{ secrets.AUTH_ENV }}
-            ENVEOF
-            cat > curriculum-service/.env <<'ENVEOF'
-            ${{ secrets.CURRICULUM_ENV }}
-            ENVEOF
-            cat > storage-service/.env <<'ENVEOF'
-            ${{ secrets.STORAGE_ENV }}
-            ENVEOF
-            cat > payment-service/.env <<'ENVEOF'
-            ${{ secrets.PAYMENT_ENV }}
-            ENVEOF
-            cat > notification-service/.env <<'ENVEOF'
-            ${{ secrets.NOTIFICATION_ENV }}
-            ENVEOF
-            cat > AI-service/.env <<'ENVEOF'
-            ${{ secrets.AI_ENV }}
-            ENVEOF
-            cat > Code-Runner-Service/.env <<'ENVEOF'
-            ${{ secrets.CODE_RUNNER_ENV }}
-            ENVEOF
+            if ! grep -q "^DOCKERHUB_USERNAME=" .env; then
+              echo "" >> .env
+              echo "DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" >> .env
+            fi
 
-            {
-              echo ""
-              echo "DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}"
-            } >> .env
-
-            chmod 600 .env gateway/.env auth-service/.env curriculum-service/.env storage-service/.env payment-service/.env notification-service/.env AI-service/.env Code-Runner-Service/.env
+            find . -name ".env" -type f -exec chmod 600 {} \;
 
             docker compose -f docker-compose.prod.yml up -d postgres redis minio redpanda minio-init
