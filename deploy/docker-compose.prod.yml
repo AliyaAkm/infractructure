@@ -251,7 +251,7 @@ services:
       - --smp
       - "1"
       - --memory
-      - "512M"
+      - "256M"
       - --reserve-memory
       - "0M"
       - --node-id
