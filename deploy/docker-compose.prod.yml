@@ -172,8 +172,6 @@ services:
   code-runner-service:
     image: ${DOCKERHUB_USERNAME}/zerde-code-runner-service:latest
     container_name: code-runner-service
-    env_file:
-      - ./Code-Runner-Service/.env
     environment:
       PORT: ${CODE_RUNNER_SERVICE_PORT}
     volumes:
